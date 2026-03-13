@@ -430,15 +430,16 @@ def trigger_pipeline():
 
 
 @app.get("/api/themes")
-def list_themes():
+def list_themes(limit: int = 150):
     """List all detected theme clusters sorted by emergence score."""
-    cached = _cache_get("themes")
+    cached = _cache_get(f"themes_{limit}")
     if cached:
         return cached
 
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM themes ORDER BY emergence_score DESC"
+            "SELECT * FROM themes ORDER BY emergence_score DESC LIMIT ?",
+            (limit,),
         ).fetchall()
 
         themes = []
@@ -481,7 +482,7 @@ def list_themes():
                 ],
             })
 
-    _cache_set("themes", themes)
+    _cache_set(f"themes_{limit}", themes)
     return themes
 
 

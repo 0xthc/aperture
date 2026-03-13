@@ -21,8 +21,8 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-MIN_CLUSTER_SIZE = 3       # Minimum founders to form a theme
-MIN_SAMPLES = 2            # HDBSCAN min_samples
+MIN_CLUSTER_SIZE = 8       # Minimum founders to form a theme (higher = fewer, tighter clusters)
+MIN_SAMPLES = 4            # HDBSCAN min_samples
 UMAP_DIMS = 15
 UMAP_NEIGHBORS = 15
 
@@ -91,15 +91,15 @@ def _compute_emergence_score(conn, theme_id: int, founder_ids: list[int]) -> int
 
 
 def _fallback_theme_name(conn, founder_ids):
+    if not founder_ids:
+        return "Emerging Theme"
+    ph = ",".join("?" for _ in founder_ids)
     words = []
-
-    for fid in founder_ids:
-        row = conn.execute("SELECT domain FROM founders WHERE id = ?", (fid,)).fetchone()
-        if row and row["domain"]:
+    for row in conn.execute(f"SELECT domain FROM founders WHERE id IN ({ph})", founder_ids).fetchall():
+        if row["domain"]:
             words.extend(row["domain"].lower().split())
-        tags = conn.execute("SELECT tag FROM founder_tags WHERE founder_id = ?", (fid,)).fetchall()
-        for t in tags:
-            words.extend(t["tag"].lower().split())
+    for row in conn.execute(f"SELECT tag FROM founder_tags WHERE founder_id IN ({ph})", founder_ids).fetchall():
+        words.extend(row["tag"].lower().split())
 
     stop = {"the", "and", "for", "with", "that", "this", "from", "are", "has", "its", "in", "of", "a", "an", "to", "ai", "ml", "tool", "tools", "platform"}
     filtered = [w for w in words if w not in stop and len(w) > 2]
@@ -138,9 +138,13 @@ def _classify_sector(embedding, sector_vecs):
 
 def _llm_theme_name(openai_client, conn, founder_ids):
     snippets = []
-    for fid in founder_ids[:8]:
-        row = conn.execute("SELECT handle AS username, bio, domain FROM founders WHERE id = ?", (fid,)).fetchone()
-        if row:
+    sample = founder_ids[:8]
+    if sample:
+        ph = ",".join("?" for _ in sample)
+        rows = conn.execute(
+            f"SELECT handle AS username, bio, domain FROM founders WHERE id IN ({ph})", sample
+        ).fetchall()
+        for row in rows:
             parts = [p for p in [row["username"], row["bio"], row["domain"]] if p]
             snippets.append(" - ".join(parts[:2]))
     if not snippets:
@@ -180,9 +184,12 @@ def _classify_founder_origin(conn, founder_ids: list[int]) -> str:
     serial_kw = ["serial founder", "exits", "previously founded", "co-founded"]
     operator_kw = ["cto", "vp", "director", "led", "head of", "principal", "staff engineer"]
 
-    for fid in founder_ids:
-        row = conn.execute("SELECT bio FROM founders WHERE id = ?", (fid,)).fetchone()
-        bio = (row["bio"] or "").lower() if row else ""
+    if not founder_ids:
+        return "Mixed backgrounds"
+    ph = ",".join("?" for _ in founder_ids)
+    rows = conn.execute(f"SELECT bio FROM founders WHERE id IN ({ph})", founder_ids).fetchall()
+    for row in rows:
+        bio = (row["bio"] or "").lower()
         if any(k in bio for k in faang_kw):
             faang += 1
         if any(k in bio for k in research_kw):
