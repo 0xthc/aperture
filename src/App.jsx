@@ -467,15 +467,131 @@ function ThemesView() {
     </div>
   );
 
+  const [patternsView, setPatternsView] = useState("cards"); // "cards" | "saturation"
+  const [satFilter, setSatFilter] = useState("all"); // "all" | "open" | "active" | "crowded"
+  const [satSort, setSatSort] = useState("emergence"); // "emergence" | "saturation_asc" | "saturation_desc" | "builders"
+
+  const satLabel = (pct) => pct >= 60 ? "Crowded" : pct >= 30 ? "Active" : "Open";
+  const satColor = (pct) => pct >= 60 ? C.red : pct >= 30 ? "#d97706" : C.green;
+
+  const satThemes = themes
+    .map(t => ({
+      ...t,
+      satPct: t.builderCount ? Math.round(((t.fundedCount || 0) / t.builderCount) * 100) : 0,
+    }))
+    .filter(t => satFilter === "all" || satLabel(t.satPct).toLowerCase() === satFilter)
+    .sort((a, b) => {
+      if (satSort === "saturation_asc") return a.satPct - b.satPct;
+      if (satSort === "saturation_desc") return b.satPct - a.satPct;
+      if (satSort === "builders") return b.builderCount - a.builderCount;
+      return b.emergenceScore - a.emergenceScore;
+    });
+
   return (
     <div style={{ padding: 24, overflowY: "auto", height: "100%" }}>
-      <div style={{ marginBottom: 20 }}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 700, color: C.text }}>Patterns</h2>
-        <p style={{ margin: 0, fontSize: 13, color: C.textMuted }}>Clusters of unrelated founders independently building in the same direction</p>
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h2 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 700, color: C.text }}>Patterns</h2>
+          <p style={{ margin: 0, fontSize: 13, color: C.textMuted }}>Clusters of unrelated founders independently building in the same direction</p>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {["cards", "saturation"].map(v => (
+            <button key={v} onClick={() => setPatternsView(v)} style={{
+              padding: "6px 14px", borderRadius: 8, border: `1px solid ${C.border}`, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              background: patternsView === v ? C.accent : C.surface,
+              color: patternsView === v ? "#fff" : C.textSub,
+            }}>
+              {v === "cards" ? "Clusters" : "Saturation"}
+            </button>
+          ))}
+        </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
-        {themes.map(t => <ThemeCard key={t.id} theme={t} onClick={(theme) => setSelectedThemeId(theme.id)} />)}
-      </div>
+
+      {patternsView === "cards" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
+          {themes.map(t => <ThemeCard key={t.id} theme={t} onClick={(theme) => setSelectedThemeId(theme.id)} />)}
+        </div>
+      )}
+
+      {patternsView === "saturation" && (
+        <div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              {["all", "open", "active", "crowded"].map(f => (
+                <button key={f} onClick={() => setSatFilter(f)} style={{
+                  padding: "4px 12px", borderRadius: 20, border: `1px solid ${C.border}`, cursor: "pointer", fontSize: 12, fontWeight: 500,
+                  background: satFilter === f ? C.accent : C.surface,
+                  color: satFilter === f ? "#fff" : C.textSub,
+                }}>
+                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 12, color: C.textMuted }}>Sort:</span>
+              <select value={satSort} onChange={e => setSatSort(e.target.value)} style={{
+                fontSize: 12, padding: "4px 8px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.surface, color: C.text, cursor: "pointer",
+              }}>
+                <option value="emergence">Emergence score</option>
+                <option value="saturation_asc">Least saturated first</option>
+                <option value="saturation_desc">Most saturated first</option>
+                <option value="builders">Most builders</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "#f7f7f5", borderBottom: `1px solid ${C.border}` }}>
+                  <th style={{ padding: "10px 16px", textAlign: "left", fontWeight: 600, color: C.textSub, fontSize: 11 }}>CLUSTER</th>
+                  <th style={{ padding: "10px 16px", textAlign: "left", fontWeight: 600, color: C.textSub, fontSize: 11 }}>SECTOR</th>
+                  <th style={{ padding: "10px 8px", textAlign: "center", fontWeight: 600, color: C.textSub, fontSize: 11 }}>BUILDERS</th>
+                  <th style={{ padding: "10px 8px", textAlign: "center", fontWeight: 600, color: C.textSub, fontSize: 11 }}>FUNDED</th>
+                  <th style={{ padding: "10px 16px", textAlign: "center", fontWeight: 600, color: C.textSub, fontSize: 11 }}>SATURATION</th>
+                  <th style={{ padding: "10px 8px", textAlign: "center", fontWeight: 600, color: C.textSub, fontSize: 11 }}>EMERGENCE</th>
+                </tr>
+              </thead>
+              <tbody>
+                {satThemes.map((t, i) => {
+                  const label = satLabel(t.satPct);
+                  const col = satColor(t.satPct);
+                  return (
+                    <tr key={t.id}
+                      onClick={() => { setSelectedThemeId(t.id); setPatternsView("cards"); }}
+                      style={{ borderBottom: `1px solid ${C.borderLight}`, cursor: "pointer", background: i % 2 === 0 ? "#fff" : "#fafaf8", transition: "background 0.1s" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#f0f0ec"}
+                      onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#fafaf8"}
+                    >
+                      <td style={{ padding: "10px 16px", fontWeight: 600, color: C.text, maxWidth: 260 }}>
+                        <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</div>
+                      </td>
+                      <td style={{ padding: "10px 16px" }}>
+                        {t.sector && <Badge color="#666" bg="#f4f4f1" border="#e0e0dc" style={{ fontSize: 11 }}>{t.sector}</Badge>}
+                      </td>
+                      <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 700, color: C.text, fontFamily: "ui-monospace, monospace" }}>{t.builderCount}</td>
+                      <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 700, color: C.textSub, fontFamily: "ui-monospace, monospace" }}>{t.fundedCount || 0}</td>
+                      <td style={{ padding: "10px 16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ flex: 1, height: 6, background: "#ececec", borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{ width: `${t.satPct}%`, height: "100%", background: col, borderRadius: 3, transition: "width 0.3s" }} />
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: col, minWidth: 32, fontFamily: "ui-monospace, monospace" }}>{t.satPct}%</span>
+                          <Badge color={col} bg={col + "18"} border={col + "44"}>{label}</Badge>
+                        </div>
+                      </td>
+                      <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 800, color: scoreColor(t.emergenceScore), fontFamily: "ui-monospace, monospace" }}>{t.emergenceScore}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {satThemes.length === 0 && (
+              <div style={{ padding: 32, textAlign: "center", color: C.textMuted, fontSize: 13 }}>No clusters match this filter.</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
