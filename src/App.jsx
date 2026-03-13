@@ -291,6 +291,9 @@ function ThemesView() {
   const [selectedThemeId, setSelectedThemeId] = useState(null);
   const [selected, setSelected] = useState(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
+  const [patternsView, setPatternsView] = useState("cards"); // "cards" | "saturation"
+  const [satFilter, setSatFilter] = useState("all"); // "all" | "open" | "active" | "crowded"
+  const [satSort, setSatSort] = useState("emergence"); // "emergence" | "saturation_asc" | "saturation_desc" | "builders"
 
   const cleanHandle = (handle = "") => handle.replace(/^@/, "");
   const truncate = (text = "", max = 50) => text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -466,10 +469,6 @@ function ThemesView() {
       </div>
     </div>
   );
-
-  const [patternsView, setPatternsView] = useState("cards"); // "cards" | "saturation"
-  const [satFilter, setSatFilter] = useState("all"); // "all" | "open" | "active" | "crowded"
-  const [satSort, setSatSort] = useState("emergence"); // "emergence" | "saturation_asc" | "saturation_desc" | "builders"
 
   const satLabel = (pct) => pct >= 60 ? "Crowded" : pct >= 30 ? "Active" : "Open";
   const satColor = (pct) => pct >= 60 ? C.red : pct >= 30 ? "#d97706" : C.green;
