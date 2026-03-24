@@ -1377,17 +1377,22 @@ function matchesVertical(founder, verticalKey) {
 }
 
 const YC_BATCHES = [
-  { key: "all",    label: "All" },
-  { key: "W26",    label: "YC W26", color: "#FF6600" },
-  { key: "S25",    label: "YC S25", color: "#e65c00" },
-  { key: "W25",    label: "YC W25", color: "#cc5200" },
-  { key: "yc_any", label: "YC (any)", color: "#a34200" },
+  { key: "all",       label: "All" },
+  { key: "W26",       label: "YC W26",    color: "#FF6600" },
+  { key: "S25",       label: "YC S25",    color: "#e65c00" },
+  { key: "W25",       label: "YC W25",    color: "#cc5200" },
+  { key: "yc_any",   label: "YC (any)",  color: "#a34200" },
+  { key: "a16z",      label: "a16z",      color: "#1d4ed8" },
+  { key: "HF0",       label: "HF0",       color: "#7c3aed" },
+  { key: "Techstars", label: "Techstars", color: "#0891b2" },
+  { key: "500",       label: "500 Global",color: "#059669" },
+  { key: "Pioneer",   label: "Pioneer",   color: "#b45309" },
 ];
 
 function matchesBatch(founder, batchKey) {
   if (batchKey === "all") return true;
   if (batchKey === "yc_any") return !!founder.incubator && founder.incubator.startsWith("YC");
-  return (founder.incubator || "").includes(batchKey);
+  return (founder.incubator || "").toLowerCase().includes(batchKey.toLowerCase());
 }
 
 const SCOUT_MODES = [
