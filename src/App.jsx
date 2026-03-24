@@ -278,8 +278,8 @@ function ThemeCard({ theme, onClick }) {
           )}
         </div>
       )}
-      <div style={{ fontSize: 11, color: C.textMuted, textAlign: "right", marginTop: 10 }}>
-        View founders →
+      <div style={{ fontSize: 11, color: C.accent, textAlign: "right", marginTop: 10, fontWeight: 600 }}>
+        View {theme.builderCount} founders →
       </div>
     </Card>
   );
@@ -395,12 +395,25 @@ function ThemesView() {
             return (
               <Card key={f.id} style={{ padding: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, minWidth: 0 }}>
-                    {f.name}{f.handle ? ` (${f.handle})` : ""}
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {f.company || f.name}
                   </div>
-                  <ScorePill score={f.score} size="sm" />
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    {(f.domain || f.yc_url) && (
+                      <a
+                        href={f.domain ? `https://${f.domain.replace(/^https?:\/\//, "")}` : f.yc_url}
+                        target="_blank" rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{ fontSize: 11, color: C.accent, textDecoration: "none", fontWeight: 500 }}
+                      >{f.domain ? f.domain.replace(/^https?:\/\//, "").replace(/\/$/, "") : "YC"} ↗</a>
+                    )}
+                    <ScorePill score={f.score} size="sm" />
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{f.company || f.domain || "Independent builder"}</div>
+                {f.incubator && (
+                  <div style={{ marginBottom: 4 }}><IncubatorBadge label={f.incubator} /></div>
+                )}
+                <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{f.location || ""}</div>
                 <div
                   style={{
                     fontSize: 12,
