@@ -820,6 +820,16 @@ function StartupCard({ founder: s, selected, onClick }) {
         <span style={{ fontSize: 14, fontWeight: 700, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {s.company || s.name}
         </span>
+        {(s.domain || s.yc_url) && (
+          <a
+            href={s.domain ? `https://${s.domain.replace(/^https?:\/\//, "")}` : s.yc_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            title={s.domain || "YC profile"}
+            style={{ color: C.textMuted, lineHeight: 1, flexShrink: 0, textDecoration: "none", fontSize: 13 }}
+          >↗</a>
+        )}
         <IncubatorBadge label={s.incubator} />
         <ScorePill score={s.score} size="sm" />
       </div>
@@ -961,6 +971,13 @@ function FounderDetail({ founder, onStatusChange, onNotesChange }) {
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.text }}>{founder.company || founder.name}</h2>
+            {(founder.domain || founder.yc_url) && (
+              <a
+                href={founder.domain ? `https://${founder.domain.replace(/^https?:\/\//, "")}` : founder.yc_url}
+                target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 12, color: C.accent, textDecoration: "none", fontWeight: 500 }}
+              >{founder.domain || "YC profile"} ↗</a>
+            )}
             {founder.incubator && <IncubatorBadge label={founder.incubator} />}
             {founder.stage && <Badge>{founder.stage}</Badge>}
             <button onClick={() => onStatusChange(founder.id, nextStatus)} style={{
