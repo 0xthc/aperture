@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
 const API = import.meta.env.VITE_API_URL || "";
+const _BUILD = "20260505-3"; const _NOOP = () => {};
 
 // ── Design tokens ─────────────────────────────────────────────
 const C = {
@@ -97,12 +98,12 @@ function ScoreBar({ label, value, max = 100 }) {
   );
 }
 
-function Card({ children, style = {}, ...props }) {
+function Card({ children, style = {} }) {
   return (
     <div style={{
       background: C.surface, border: `1px solid ${C.border}`,
       borderRadius: 12, boxShadow: C.shadow, ...style
-    }} {...props}>{children}</div>
+    }}>{children}</div>
   );
 }
 
@@ -127,8 +128,8 @@ function EmptyState({ title, sub }) {
 
 // ── Nav ───────────────────────────────────────────────────────
 
-const VIEWS = ["raw", "field", "patterns", "breaks", "flow"];
-const VIEW_LABELS = { raw: "Raw", field: "Field", patterns: "Patterns", breaks: "Breaks", flow: "Flow" };
+const VIEWS = ["field", "patterns", "breaks", "flow"];
+const VIEW_LABELS = { field: "Field", patterns: "Patterns", breaks: "Breaks", flow: "Flow" };
 const VIEW_ICONS = { raw: "", field: "", patterns: "", breaks: "", flow: "" };
 
 function TopNav({ view, setView, stats }) {
@@ -278,11 +279,38 @@ function ThemeCard({ theme, onClick }) {
           )}
         </div>
       )}
-      <div style={{ fontSize: 11, color: C.accent, textAlign: "right", marginTop: 10, fontWeight: 600 }}>
-        View {theme.builderCount} founders →
+      <div style={{ fontSize: 11, color: C.textMuted, textAlign: "right", marginTop: 10 }}>
+        View founders →
       </div>
     </Card>
   );
+}
+
+// Cluster source filter options for the Patterns tab
+const CLUSTER_FILTERS = [
+  { key: "all",          label: "All" },
+  { key: "yc",           label: "YC" },
+  { key: "accelerators", label: "Accelerators" },
+  { key: "producthunt",  label: "Product Hunt" },
+];
+
+function matchesClusterFilter(theme, filterKey) {
+  if (filterKey === "all") return true;
+  // Themes carry a `founders` array; filter by incubator of their founders
+  // Fall back to theme-level incubator field if present
+  const founders = theme.founders || [];
+  if (founders.length === 0) {
+    // If no founders attached, use theme.incubator or allow all
+    const inc = (theme.incubator || "").trim();
+    if (filterKey === "yc") return inc === "YC W26" || inc === "YC S25";
+    if (filterKey === "accelerators") return inc && !inc.startsWith("YC") && inc !== "Product Hunt";
+    if (filterKey === "producthunt") return inc === "Product Hunt";
+    return true;
+  }
+  if (filterKey === "yc") return founders.some(f => f.incubator === "YC W26" || f.incubator === "YC S25");
+  if (filterKey === "accelerators") return founders.some(f => f.incubator && !f.incubator.startsWith("YC") && f.incubator !== "Product Hunt");
+  if (filterKey === "producthunt") return founders.some(f => f.incubator === "Product Hunt");
+  return true;
 }
 
 function ThemesView() {
@@ -294,18 +322,24 @@ function ThemesView() {
   const [patternsView, setPatternsView] = useState("cards"); // "cards" | "saturation"
   const [satFilter, setSatFilter] = useState("all"); // "all" | "open" | "active" | "crowded"
   const [satSort, setSatSort] = useState("emergence"); // "emergence" | "saturation_asc" | "saturation_desc" | "builders"
+  const [clusterFilter, setClusterFilter] = useState("all"); // "all" | "yc" | "accelerators" | "producthunt"
 
   const cleanHandle = (handle = "") => handle.replace(/^@/, "");
   const truncate = (text = "", max = 50) => text.length > max ? `${text.slice(0, max - 1)}…` : text;
   const selectedThemeName = selected?.name || themes.find(t => t.id === selectedThemeId)?.name || "";
   const encodedThemeName = encodeURIComponent(selectedThemeName);
 
+  // Fetch themes whenever clusterFilter changes (server-side filtering by source_group)
   useEffect(() => {
-    fetch(`${API}/api/themes`).then(r => r.json()).then(data => {
-      setThemes(data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
+    setLoading(true);
+    fetch(`${API}/api/themes?source=${clusterFilter}`)
+      .then(r => r.json())
+      .then(data => {
+        setThemes(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [clusterFilter]);
 
   useEffect(() => {
     if (!selectedThemeId) {
@@ -395,25 +429,12 @@ function ThemesView() {
             return (
               <Card key={f.id} style={{ padding: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {f.company || f.name}
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, minWidth: 0 }}>
+                    {f.name}{f.handle ? ` (${f.handle})` : ""}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                    {(f.domain || f.yc_url) && (
-                      <a
-                        href={f.domain ? `https://${f.domain.replace(/^https?:\/\//, "")}` : f.yc_url}
-                        target="_blank" rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        style={{ fontSize: 11, color: C.accent, textDecoration: "none", fontWeight: 500 }}
-                      >{f.domain ? f.domain.replace(/^https?:\/\//, "").replace(/\/$/, "") : "YC"} ↗</a>
-                    )}
-                    <ScorePill score={f.score} size="sm" />
-                  </div>
+                  <ScorePill score={f.score} size="sm" />
                 </div>
-                {f.incubator && (
-                  <div style={{ marginBottom: 4 }}><IncubatorBadge label={f.incubator} /></div>
-                )}
-                <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{f.location || ""}</div>
+                <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 8 }}>{f.company || f.domain || "Independent builder"}</div>
                 <div
                   style={{
                     fontSize: 12,
@@ -486,7 +507,10 @@ function ThemesView() {
   const satLabel = (pct) => pct >= 60 ? "Crowded" : pct >= 30 ? "Active" : "Open";
   const satColor = (pct) => pct >= 60 ? C.red : pct >= 30 ? "#d97706" : C.green;
 
-  const satThemes = themes
+  // Themes are already filtered server-side by source_group (clusterFilter)
+  const filteredThemes = themes;
+
+  const satThemes = filteredThemes
     .map(t => ({
       ...t,
       satPct: t.builderCount ? Math.round(((t.fundedCount || 0) / t.builderCount) * 100) : 0,
@@ -504,7 +528,7 @@ function ThemesView() {
       <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h2 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 700, color: C.text }}>Patterns</h2>
-          <p style={{ margin: 0, fontSize: 13, color: C.textMuted }}>Clusters of unrelated founders independently building in the same direction</p>
+          <p style={{ margin: 0, fontSize: 13, color: C.textMuted }}>Clusters of founders independently building in the same direction</p>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           {["cards", "saturation"].map(v => (
@@ -519,9 +543,37 @@ function ThemesView() {
         </div>
       </div>
 
+      {/* Cluster source filter bar */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
+        {CLUSTER_FILTERS.map(f => (
+          <button
+            key={f.key}
+            onClick={() => setClusterFilter(f.key)}
+            style={{
+              padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+              cursor: "pointer",
+              border: `1px solid ${clusterFilter === f.key ? C.accent : C.border}`,
+              background: clusterFilter === f.key ? C.accent : C.surface,
+              color: clusterFilter === f.key ? "#fff" : C.textSub,
+              transition: "all 0.15s",
+            }}
+          >
+            {f.label}
+          </button>
+        ))}
+        <span style={{ alignSelf: "center", fontSize: 12, color: C.textMuted, marginLeft: 4 }}>
+          {filteredThemes.length} cluster{filteredThemes.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
       {patternsView === "cards" && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
-          {themes.map(t => <ThemeCard key={t.id} theme={t} onClick={(theme) => setSelectedThemeId(theme.id)} />)}
+          {filteredThemes.map(t => <ThemeCard key={t.id} theme={t} onClick={(theme) => setSelectedThemeId(theme.id)} />)}
+          {filteredThemes.length === 0 && (
+            <div style={{ gridColumn: "1/-1", padding: "32px 0", textAlign: "center", color: C.textMuted, fontSize: 13 }}>
+              No clusters match this filter.
+            </div>
+          )}
         </div>
       )}
 
@@ -833,16 +885,6 @@ function StartupCard({ founder: s, selected, onClick }) {
         <span style={{ fontSize: 14, fontWeight: 700, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {s.company || s.name}
         </span>
-        {(s.domain || s.yc_url) && (
-          <a
-            href={s.domain ? `https://${s.domain.replace(/^https?:\/\//, "")}` : s.yc_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            title={s.domain || "YC profile"}
-            style={{ color: C.textMuted, lineHeight: 1, flexShrink: 0, textDecoration: "none", fontSize: 13 }}
-          >↗</a>
-        )}
         <IncubatorBadge label={s.incubator} />
         <ScorePill score={s.score} size="sm" />
       </div>
@@ -984,13 +1026,6 @@ function FounderDetail({ founder, onStatusChange, onNotesChange }) {
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.text }}>{founder.company || founder.name}</h2>
-            {(founder.domain || founder.yc_url) && (
-              <a
-                href={founder.domain ? `https://${founder.domain.replace(/^https?:\/\//, "")}` : founder.yc_url}
-                target="_blank" rel="noopener noreferrer"
-                style={{ fontSize: 12, color: C.accent, textDecoration: "none", fontWeight: 500 }}
-              >{founder.domain || "YC profile"} ↗</a>
-            )}
             {founder.incubator && <IncubatorBadge label={founder.incubator} />}
             {founder.stage && <Badge>{founder.stage}</Badge>}
             <button onClick={() => onStatusChange(founder.id, nextStatus)} style={{
@@ -1317,11 +1352,10 @@ function FieldLegend({ total, filtered, scoutLabel }) {
           <div style={{ fontWeight: 700, color: C.textMuted, marginBottom: 6, textTransform: "uppercase", fontSize: 10, letterSpacing: "0.05em" }}>Data Sources</div>
           {[
             { label: "GitHub", dot: SOURCE.github.color, desc: "Commit activity, stars, repositories, bio" },
-            { label: "Hacker News", dot: SOURCE.hn.color, desc: "Karma, top posts, Show HN launches" },
+            { label: "Hacker News", dot: SOURCE.hn.color, desc: "Karma enrichment only — updates existing founders, no new inserts" },
             { label: "Product Hunt", dot: SOURCE.producthunt.color, desc: "Launch upvotes, featured products" },
             { label: "YC API", dot: "#FF6600", desc: "W26, S25, W25 batch companies — official YC directory" },
             { label: "Accelerator seeds", dot: "#6d28d9", desc: "Curated lists: Techstars, 500 Global, PnP, HF0, a16z Speedrun, Pioneer" },
-            { label: "HN watcher", dot: "#888", desc: "Auto-detects new Launch HN posts mentioning any accelerator" },
           ].map(({ label, dot, desc }) => (
             <div key={label} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 4 }}>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0, marginTop: 4 }} />
@@ -1357,7 +1391,7 @@ function FieldLegend({ total, filtered, scoutLabel }) {
           </div>
 
           <div style={{ marginTop: 8, color: C.textMuted, fontStyle: "italic" }}>
-            Pipeline runs hourly. YC companies seeded from public API. Other accelerators updated from curated list + HN launches.
+            Pipeline runs hourly. Sources: YC W26 + S25 · Product Hunt (150+ upvotes) · Accelerators (Sequoia Arc, SPC, EF, Pear, Antler, HF0, Techstars, 500 Global, a16z, Pioneer). HN enrichment-only.
           </div>
         </div>
       )}
@@ -1390,22 +1424,17 @@ function matchesVertical(founder, verticalKey) {
 }
 
 const YC_BATCHES = [
-  { key: "all",       label: "All" },
-  { key: "W26",       label: "YC W26",    color: "#FF6600" },
-  { key: "S25",       label: "YC S25",    color: "#e65c00" },
-  { key: "W25",       label: "YC W25",    color: "#cc5200" },
-  { key: "yc_any",   label: "YC (any)",  color: "#a34200" },
-  { key: "a16z",      label: "a16z",      color: "#1d4ed8" },
-  { key: "HF0",       label: "HF0",       color: "#7c3aed" },
-  { key: "Techstars", label: "Techstars", color: "#0891b2" },
-  { key: "500",       label: "500 Global",color: "#059669" },
-  { key: "Pioneer",   label: "Pioneer",   color: "#b45309" },
+  { key: "all",    label: "All" },
+  { key: "W26",    label: "YC W26", color: "#FF6600" },
+  { key: "S25",    label: "YC S25", color: "#e65c00" },
+  { key: "W25",    label: "YC W25", color: "#cc5200" },
+  { key: "yc_any", label: "YC (any)", color: "#a34200" },
 ];
 
 function matchesBatch(founder, batchKey) {
   if (batchKey === "all") return true;
   if (batchKey === "yc_any") return !!founder.incubator && founder.incubator.startsWith("YC");
-  return (founder.incubator || "").toLowerCase().includes(batchKey.toLowerCase());
+  return (founder.incubator || "").includes(batchKey);
 }
 
 const SCOUT_MODES = [
@@ -1538,7 +1567,7 @@ function ScoutingView() {
       .filter(f => batchFilter === "all")
       .filter(scoutMode.filter)
       .sort((a, b) => scoutMode.sort(b) - scoutMode.sort(a));
-  }, [founders, scoutMode, verticalFilter, batchFilter]);
+  }, [founders, scoutMode, verticalFilter]);
 
   // Legacy: needed for FieldLegend filtered count
   const applyScout = useCallback((list) => {
@@ -2080,3 +2109,4 @@ export default function App() {
     </div>
   );
 }
+// cache bust Tue May  5 17:51:12 UTC 2026
